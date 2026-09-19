@@ -169,6 +169,17 @@
     </div>
     <p class="hint" style="margin-top:10px">لتصدير فيديو للاستخدام في Alight Motion: اختر خلفية خضراء ثم صدّر، وطبّق عليها Chroma Key هناك. صيغة الشفافية داخل الفيديو ما تدعمها كل الأجهزة، فاستخدم PNG للإطارات الشفافة.</p>
   </div>
+
+  <div class="panel">
+    <h2>تحويل لـ MP4</h2>
+    <p class="hint">تطبيقات زي Alight Motion غالباً ما تقرأ صيغة WebM. هذا الزر يحوّل الفيديو لـ MP4 داخل المتصفح نفسه (بدون رفعه لأي سيرفر) عشان ترفعه بأي تطبيق.</p>
+    <div class="bar" style="margin:0">
+      <button id="convertLast" class="primary" disabled>تحويل آخر تصدير لـ MP4</button>
+      <label class="btn primary" for="convertFile" style="text-align:center">تحويل فيديو WebM من الجهاز</label>
+    </div>
+    <input type="file" id="convertFile" accept="video/webm,.webm">
+    <p class="hint" style="margin-top:10px">أول مرة تستخدم التحويل بياخذ وقت أطول لأنه يحمّل أداة التحويل (حوالي 30 ميجا)، والمرات اللي بعدها أسرع. التحويل نفسه يأخذ وقت تقريباً بطول الفيديو أو أكثر حسب جهازك.</p>
+  </div>
 </div>
 
 <script>
@@ -185,6 +196,8 @@ let bg = { type: 'transparent', color: '#00b140', img: null };
 let seg = null, segReady = false, segQuality = 1, lastMask = null;
 let prevAlpha = null; // Float32Array for temporal smoothing across frames
 let busy = false, playing = false, exporting = false;
+let ffmpegInstance = null, converting = false;
+let lastExportBlob = null, lastExportName = 'cutout-video';
 
 const setStatus = (t, warn) => { statusEl.textContent = t || ''; statusEl.classList.toggle('warn', !!warn); };
 const hexToRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
@@ -461,9 +474,15 @@ $('#export').addEventListener('click', async () => {
   rec.ondataavailable = e => e.data.size && chunks.push(e.data);
   rec.onstop = () => {
     const ext = (rec.mimeType || '').includes('mp4') ? 'mp4' : 'webm';
-    download(new Blob(chunks, { type: rec.mimeType }), 'cutout-video.' + ext);
+    const finalBlob = new Blob(chunks, { type: rec.mimeType });
+    download(finalBlob, 'cutout-video.' + ext);
     exporting = false; $('#export').disabled = false;
-    setStatus('تم التصدير وبدأ التحميل.');
+    if (ext === 'webm') {
+      lastExportBlob = finalBlob;
+      lastExportName = 'cutout-video';
+      $('#convertLast').disabled = false;
+    }
+    setStatus('تم التصدير وبدأ التحميل.' + (ext === 'webm' ? ' إذا التطبيق ما يقرأ WebM، استخدم زر "تحويل آخر تصدير لـ MP4" تحت.' : ''));
   };
   v.addEventListener('ended', () => setTimeout(() => rec.state !== 'inactive' && rec.stop(), 300), { once: true });
   setStatus(bg.type === 'transparent'
@@ -471,6 +490,61 @@ $('#export').addEventListener('click', async () => {
     : 'جاري التصدير… لا تغلق الصفحة حتى ينتهي الفيديو.', bg.type === 'transparent');
   rec.start(500);
   v.play();
+});
+
+/* ---------- التحويل لـ MP4 (يشتغل داخل المتصفح عبر FFmpeg) ---------- */
+async function loadFFmpeg() {
+  if (ffmpegInstance) return ffmpegInstance;
+  const { FFmpeg } = await import('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/+esm');
+  const { toBlobURL } = await import('https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/+esm');
+  const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd';
+  const ffmpeg = new FFmpeg();
+  ffmpeg.on('log', ({ message }) => setStatus('جاري التحويل: ' + message));
+  await ffmpeg.load({
+    coreURL: await toBlobURL(baseURL + '/ffmpeg-core.js', 'text/javascript'),
+    wasmURL: await toBlobURL(baseURL + '/ffmpeg-core.wasm', 'application/wasm'),
+  });
+  ffmpegInstance = ffmpeg;
+  return ffmpeg;
+}
+
+async function convertToMp4(blob, filename) {
+  if (converting) return;
+  converting = true;
+  $('#convertLast').disabled = true;
+  $('#convertFile').disabled = true;
+  try {
+    setStatus('جاري تحميل أداة التحويل (أول مرة فقط، يحتاج إنترنت)…');
+    const ffmpeg = await loadFFmpeg();
+    setStatus('جاري تحويل الفيديو لـ MP4، لا تغلق الصفحة…');
+    const inName = 'in.webm', outName = 'out.mp4';
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    await ffmpeg.writeFile(inName, buf);
+    await ffmpeg.exec(['-i', inName, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-pix_fmt', 'yuv420p', '-c:a', 'aac', outName]);
+    const data = await ffmpeg.readFile(outName);
+    const mp4Blob = new Blob([data.buffer], { type: 'video/mp4' });
+    download(mp4Blob, filename + '.mp4');
+    setStatus('تم التحويل لـ MP4 وبدأ التحميل. جربه بأي تطبيق.');
+    try { await ffmpeg.deleteFile(inName); await ffmpeg.deleteFile(outName); } catch (e) {}
+  } catch (err) {
+    console.error(err);
+    setStatus('تعذر التحويل: ' + (err.message || err) + '. تأكد من الإنترنت وجرّب مرة ثانية.', true);
+  }
+  converting = false;
+  $('#convertLast').disabled = !lastExportBlob;
+  $('#convertFile').disabled = false;
+}
+
+$('#convertLast').addEventListener('click', () => {
+  if (!lastExportBlob) return setStatus('ما فيه تصدير سابق. صدّر فيديو أولاً.', true);
+  convertToMp4(lastExportBlob, lastExportName);
+});
+
+$('#convertFile').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  convertToMp4(f, (f.name || 'video').replace(/\.[^.]+$/, ''));
+  e.target.value = '';
 });
 </script>
 </body>
