@@ -108,6 +108,11 @@
   button:disabled{opacity:.4;cursor:not-allowed}
   .small{padding:8px 11px;font-size:.83rem}
 
+  select{
+    font:inherit;font-weight:600;padding:12px 14px;width:100%;
+    background:var(--panel-raised);color:var(--text);border:1px solid var(--line);border-radius:3px;
+  }
+
   .bar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
   .bar>*{flex:1 1 auto}
 
@@ -162,9 +167,31 @@
   .hide{display:none!important}
   input[type=file]{display:none}
 
+  /* ---------- زر الضبط التلقائي ---------- */
+  .autobtn{
+    width:100%;margin:0 0 8px;background:transparent;color:var(--accent);
+    border:1px solid var(--accent);border-radius:3px;
+  }
+  .autobtn:hover:not(:disabled){background:color-mix(in srgb, var(--accent) 12%, transparent)}
+  .autoresult{font-size:.84rem;color:var(--ok);margin:0 0 14px;display:none}
+  .autoresult.warn{color:var(--warn)}
+
+  /* ---------- Keyframes ---------- */
+  .kfbox{border-top:1px dashed var(--line);margin-top:6px;padding-top:14px}
+  .kfhead{font-weight:600;font-size:.92rem;margin-bottom:4px}
+  .kflist{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .kfchip{display:inline-flex;border:1px solid var(--line);border-radius:20px;overflow:hidden;background:var(--panel-raised)}
+  .kfchip button{
+    border:0;background:transparent;padding:7px 10px;font-size:.8rem;border-radius:0;
+    font-family:'IBM Plex Mono',monospace;direction:ltr;
+  }
+  .kfchip button:last-child{border-inline-start:1px solid var(--line);color:var(--muted);padding:7px 10px}
+  .kfchip.on{border-color:var(--accent)}
+  .kfchip.on button:first-child{color:var(--accent)}
+
   /* ---------- شريط القص (Trim) ---------- */
   .trimrow{margin-bottom:6px}
-  .trimrange{position:relative;height:34px;margin:8px 0}
+  .trimrange{position:relative;height:34px;margin:8px 0;direction:ltr}
   .trimrange input[type=range]{position:absolute;top:8px;left:0;width:100%;height:18px;margin:0;pointer-events:none;background:transparent}
   .trimrange input[type=range]::-webkit-slider-thumb{pointer-events:auto}
   .trimrange input[type=range]::-moz-range-thumb{pointer-events:auto}
@@ -250,6 +277,8 @@
 
     <div id="ai-panel">
       <p class="hint" data-i18n="aiHint">يكتشف الشخص تلقائياً ويشيل الخلفية، بدون خلفية خضراء.</p>
+      <button id="autoBtn" class="autobtn" type="button" disabled data-i18n="autoBtn">✦ ضبط تلقائي حسب الفيديو</button>
+      <p class="autoresult" id="autoResult" role="status"></p>
       <div class="row">
         <label for="quality"><span data-i18n="quality">دقة الكشف</span> <b id="quality-v">دقيقة</b></label>
         <input type="range" id="quality" min="0" max="1" step="1" value="1">
@@ -287,6 +316,17 @@
         <input type="range" id="spill" min="0" max="100" value="60">
       </div>
     </div>
+
+    <div class="kfbox">
+      <div class="kfhead" data-i18n="kfTitle">Keyframes (تغيير الإعدادات مع الوقت)</div>
+      <p class="hint" data-i18n="kfHint">الـ Keyframe يحفظ إعدادات الحواف عند لحظة معينة، والقيم تتغير تدريجياً بين كل Keyframe والثاني. اذهب للوقت المطلوب واضغط إضافة، وبعدها أي تعديل على السلايدرز يُسجَّل تلقائياً عند الوقت الحالي.</p>
+      <div class="bar" style="margin:0">
+        <button id="kfAdd" class="small" type="button" disabled data-i18n="kfAdd">+ إضافة Keyframe هنا</button>
+        <button id="kfClear" class="small" type="button" disabled data-i18n="kfClear">مسح كل الـ Keyframes</button>
+      </div>
+      <p class="hint" id="kfEmpty" style="margin:10px 0 0" data-i18n="kfEmpty">ما فيه Keyframes — الإعدادات ثابتة على كامل الفيديو.</p>
+      <div class="kflist" id="kfList"></div>
+    </div>
   </div>
 
   <div class="panel">
@@ -307,6 +347,13 @@
 
   <div class="panel">
     <h2><span class="htitle"><span class="step">04</span><span data-i18n="saveTitle">حفظ</span></span></h2>
+    <div class="row" style="margin-bottom:12px">
+      <label for="fmt"><span data-i18n="fmtLabel">صيغة تصدير الفيديو</span></label>
+      <select id="fmt">
+        <option value="mp4" data-i18n="fmtMp4">MP4 (يقرأ في كل التطبيقات)</option>
+        <option value="webm" data-i18n="fmtWebm">WebM (للشفافية في بعض المتصفحات)</option>
+      </select>
+    </div>
     <div class="bar" style="margin:0">
       <button id="png" class="primary" disabled data-i18n="savePng">حفظ الإطار الحالي PNG شفاف</button>
       <button id="export" class="primary" disabled data-i18n="exportVideo">تصدير الفيديو</button>
@@ -315,7 +362,7 @@
       <button id="exportSeq" disabled data-i18n="exportSeq">تصدير PNG Sequence (ZIP)</button>
       <button id="shareBtn" class="hide" data-i18n="shareBtn">مشاركة</button>
     </div>
-    <p class="hint" style="margin-top:10px" data-i18n="saveHint">لتصدير فيديو للاستخدام في Alight Motion: اختر خلفية خضراء ثم صدّر، وطبّق عليها Chroma Key هناك. صيغة الشفافية داخل الفيديو ما تدعمها كل الأجهزة، فاستخدم PNG Sequence أو PNG للإطارات الشفافة.</p>
+    <p class="hint" style="margin-top:10px" data-i18n="saveHint">التصدير الافتراضي MP4 ويقرأ في أغلب التطبيقات. MP4 ما يدعم الشفافية، فإذا كانت الخلفية شفافة تطلع خضراء عن قصد عشان تشيلها داخل Alight Motion: حدّد الطبقة ← Effects ← Matte/Mask/Key ← Chroma Key، اختر الأخضر بالقطارة، عدّل Threshold ثم Feather، وفعّل Defringe إذا ظهرت هالة خضراء على الحواف.</p>
   </div>
 
   <div class="panel">
@@ -347,11 +394,21 @@ let busy = false, playing = false, exporting = false;
 let ffmpegInstance = null, converting = false;
 let lastExportBlob = null, lastExportName = 'cutout-video';
 let lastExportKind = null; // 'video' | 'image' — يحدد نوع آخر ملف تم تصديره للمشاركة
+let analyzing = false;           // الضبط التلقائي شغال
+let exportBgOverride = null;     // خلفية مؤقتة أثناء تصدير MP4 (بدل الشفافية)
+
+/* ---------- Keyframes ---------- */
+const PARAM_IDS = ['sharp', 'temporal', 'edge', 'tol', 'soft', 'spill'];
+let keyframes = [];              // [{t, sharp, temporal, edge, tol, soft, spill}] مرتبة بالوقت
+let sliderHeld = false, lastSync = 0;
 
 const setStatus = (t, warn) => { statusEl.textContent = t || ''; statusEl.classList.toggle('warn', !!warn); };
 const hexToRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 const rgbToHex = c => '#' + c.map(x => Math.round(x).toString(16).padStart(2, '0')).join('');
 const fmtTime = s => { s = Math.max(0, s | 0); const m = (s / 60) | 0, r = s % 60; return m + ':' + String(r).padStart(2, '0'); };
+const fmtT1 = s => { s = Math.max(0, s || 0); const m = (s / 60) | 0, r = s - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(1); };
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /* ---------- تحميل الفيديو ---------- */
 $('#file').addEventListener('change', e => {
@@ -359,6 +416,8 @@ $('#file').addEventListener('change', e => {
   if (!f) return;
   if (v.src) URL.revokeObjectURL(v.src);
   v.src = URL.createObjectURL(f);
+  keyframes = []; refreshKfUI();
+  $('#autoResult').style.display = 'none';
   setStatus(t('loadingVideo'));
 });
 v.addEventListener('loadedmetadata', () => {
@@ -373,7 +432,7 @@ v.addEventListener('loadedmetadata', () => {
 });
 v.addEventListener('loadeddata', () => {
   $('#stage').classList.add('has-video');
-  ['play', 'png', 'export', 'exportSeq', 'compareBtn'].forEach(id => $('#' + id).disabled = false);
+  ['play', 'png', 'export', 'exportSeq', 'compareBtn', 'autoBtn', 'kfAdd'].forEach(id => $('#' + id).disabled = false);
   setStatus(t('ready'));
   renderFrame();
   $('#cmpVideo').src = v.src;
@@ -432,6 +491,102 @@ $('#trimEnd').addEventListener('input', e => {
 });
 $('#trimReset').addEventListener('click', () => { if (v.duration) setupTrim(); });
 
+/* ---------- قيم الإعدادات عند وقت معيّن (مع Keyframes) ---------- */
+function sliderParams() {
+  const o = {};
+  PARAM_IDS.forEach(id => { o[id] = +$('#' + id).value; });
+  return o;
+}
+function paramsAt(time) {
+  if (!keyframes.length) return sliderParams();
+  const first = keyframes[0], last = keyframes[keyframes.length - 1];
+  if (time <= first.t) return first;
+  if (time >= last.t) return last;
+  for (let i = 0; i < keyframes.length - 1; i++) {
+    const a = keyframes[i], b = keyframes[i + 1];
+    if (time >= a.t && time <= b.t) {
+      const k = (time - a.t) / Math.max(1e-6, b.t - a.t);
+      const o = {};
+      PARAM_IDS.forEach(id => { o[id] = a[id] + (b[id] - a[id]) * k; });
+      return o;
+    }
+  }
+  return last;
+}
+function upsertKf(time, P) {
+  const vals = {};
+  PARAM_IDS.forEach(id => { vals[id] = P[id]; });
+  const near = keyframes.find(k => Math.abs(k.t - time) < 0.15);
+  if (near) Object.assign(near, vals);
+  else {
+    keyframes.push({ t: Math.round(time * 100) / 100, ...vals });
+    keyframes.sort((a, b) => a.t - b.t);
+  }
+  refreshKfUI();
+}
+function refreshKfUI() {
+  const list = $('#kfList');
+  list.textContent = '';
+  keyframes.forEach((k, i) => {
+    const wrap = document.createElement('span');
+    wrap.className = 'kfchip';
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = '◆ ' + fmtT1(k.t);
+    b.onclick = () => { if (v.videoWidth && !analyzing) v.currentTime = k.t; };
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.textContent = '×';
+    x.setAttribute('aria-label', t('kfDelete'));
+    x.onclick = () => { keyframes.splice(i, 1); refreshKfUI(); if (!playing) renderFrame(); };
+    wrap.append(b, x);
+    list.appendChild(wrap);
+  });
+  $('#kfClear').disabled = !keyframes.length;
+  $('#kfEmpty').style.display = keyframes.length ? 'none' : 'block';
+  markActiveKf();
+}
+function markActiveKf() {
+  const cur = v.currentTime || 0;
+  document.querySelectorAll('#kfList .kfchip').forEach((el, i) => {
+    const k = keyframes[i];
+    el.classList.toggle('on', !!k && Math.abs(k.t - cur) < 0.15);
+  });
+}
+function setSliderValue(id, val) {
+  const el = $('#' + id);
+  el.value = String(Math.round(val));
+  const lbl = $('#' + id + '-v');
+  if (lbl) lbl.textContent = el.value;
+}
+/* أثناء وجود Keyframes: السلايدرز تعرض القيم الحالية عند الوقت الحالي */
+function syncSliders(P) {
+  const now = performance.now();
+  if (sliderHeld || (playing && now - lastSync < 120)) return;
+  lastSync = now;
+  PARAM_IDS.forEach(id => {
+    const el = $('#' + id);
+    const val = String(Math.round(P[id]));
+    if (el.value !== val) setSliderValue(id, P[id]);
+  });
+}
+PARAM_IDS.forEach(id => { $('#' + id).addEventListener('pointerdown', () => { sliderHeld = true; }); });
+window.addEventListener('pointerup', () => { sliderHeld = false; });
+window.addEventListener('pointercancel', () => { sliderHeld = false; });
+
+$('#kfAdd').addEventListener('click', () => {
+  if (!v.videoWidth || analyzing) return;
+  const time = v.currentTime;
+  upsertKf(time, paramsAt(time));
+  setStatus(t('kfAdded').replace('{t}', fmtT1(time)));
+});
+$('#kfClear').addEventListener('click', () => {
+  keyframes = [];
+  refreshKfUI();
+  setStatus(t('kfCleared'));
+  if (!playing) renderFrame();
+});
+
 /* ---------- الحلقة ---------- */
 async function loop() {
   if (!playing) return;
@@ -459,6 +614,8 @@ async function renderFrame() {
     ctx.clearRect(0, 0, W, H);
     drawBg();
     ctx.drawImage(tmp, 0, 0);
+    if (keyframes.length) syncSliders(paramsAt(v.currentTime));
+    markActiveKf();
   } catch (err) {
     console.error(err);
     setStatus(t('errProcess') + (err.message || err), true);
@@ -488,9 +645,10 @@ async function ensureSeg() {
 }
 
 function composeAI(mask) {
-  const edge = +$('#edge').value;
-  const sharp = +$('#sharp').value / 100;   // 0..1 موضع عتبة القص
-  const temporal = +$('#temporal').value / 100; // 0..0.9 وزن الفريم السابق
+  const P = paramsAt(v.currentTime);      // يراعي الـ Keyframes
+  const edge = P.edge;
+  const sharp = P.sharp / 100;            // 0..1 موضع عتبة القص
+  const temporal = P.temporal / 100;      // 0..0.9 وزن الفريم السابق
 
   // ارسم القناع الخام بحجم الكانفس
   mctx.clearRect(0, 0, W, H);
@@ -525,7 +683,7 @@ function composeAI(mask) {
   tctx.save();
   tctx.clearRect(0, 0, W, H);
   tctx.globalCompositeOperation = 'source-over';
-  tctx.filter = edge ? `blur(${edge}px)` : 'none';
+  tctx.filter = edge > 0.05 ? `blur(${edge.toFixed(1)}px)` : 'none';
   tctx.drawImage(maskCanvas, 0, 0);
   tctx.filter = 'none';
   tctx.globalCompositeOperation = 'source-in';
@@ -542,7 +700,8 @@ function chromaKey() {
   tctx.drawImage(v, 0, 0, W, H);
   const img = tctx.getImageData(0, 0, W, H);
   const d = img.data;
-  const tol = +$('#tol').value, soft = +$('#soft').value, spill = +$('#spill').value / 100;
+  const P = paramsAt(v.currentTime);      // يراعي الـ Keyframes
+  const tol = P.tol, soft = P.soft, spill = P.spill / 100;
   const [kcb, kcr] = ycc(...keyRGB);
   const dom = keyRGB.indexOf(Math.max(...keyRGB));
   const o1 = (dom + 1) % 3, o2 = (dom + 2) % 3;
@@ -594,6 +753,7 @@ $('#keycolor').addEventListener('input', e => setKey(hexToRgb(e.target.value)));
 
 /* ---------- الخلفية ---------- */
 function drawBg() {
+  if (exportBgOverride) { ctx.fillStyle = exportBgOverride; ctx.fillRect(0, 0, W, H); return; }
   if (bg.type === 'color') { ctx.fillStyle = bg.color; ctx.fillRect(0, 0, W, H); }
   else if (bg.type === 'image' && bg.img) {
     const s = Math.max(W / bg.img.width, H / bg.img.height);
@@ -646,6 +806,13 @@ $('#quality').addEventListener('input', e => {
   if (!el) return;
   el.addEventListener('input', e => {
     $('#' + id + '-v').textContent = e.target.value;
+    // إذا فيه Keyframes: أي تعديل يُسجَّل تلقائياً عند الوقت الحالي
+    if (keyframes.length && !analyzing) {
+      const time = v.videoWidth ? v.currentTime : 0;
+      const P = { ...paramsAt(time) };
+      P[id] = +e.target.value;
+      upsertKf(time, P);
+    }
     saveSettings();
     if (!playing) renderFrame();
   });
@@ -662,6 +829,8 @@ $('#resetSettings').addEventListener('click', () => {
     if (lbl) lbl.textContent = id === 'quality' ? t('qualityFine') : val;
   });
   keyRGB = hexToRgb(DEFAULTS.keycolor);
+  keyframes = []; refreshKfUI();
+  $('#autoResult').style.display = 'none';
   segReady = false;
   saveSettings();
   if (!playing) renderFrame();
@@ -677,6 +846,7 @@ function saveSettings() {
     s.mode = mode;
     s.bg = bg.type === 'image' ? { type: 'transparent' } : bg; // لا نخزن صورة الخلفية نفسها
     s.lang = currentLang;
+    s.fmt = $('#fmt').value;
     localStorage.setItem(LS_KEY, JSON.stringify(s));
   } catch (e) { /* localStorage قد لا يكون متاح (وضع خاص مثلاً) */ }
 }
@@ -693,9 +863,182 @@ function loadSettings() {
   });
   if (s.keycolor) keyRGB = hexToRgb(s.keycolor);
   if (s.bg) { bg = s.bg; markChip(document.querySelector(`#bgchips .chip[data-bg="${bg.type === 'color' ? bg.color : 'transparent'}"]`)); }
+  if (s.fmt) $('#fmt').value = s.fmt;
   if (s.mode) setMode(s.mode);
   if (s.lang) currentLang = s.lang;
 }
+$('#fmt').addEventListener('change', saveSettings);
+
+/* ---------- الضبط التلقائي حسب الفيديو ---------- */
+/* الفكرة: نأخذ عينات موزعة على الجزء المحدد، كل عينة إطارين متقاربين، ونقيس:
+   - وادي توزيع قيم القناع (أنسب عتبة قص = أقل منطقة "متردد فيها" النموذج)
+   - الحركة (فرق الإضاءة بين الإطارين) والرفرفة (فرق القناع الزائد عن الحركة)
+   ثم نحوّلها لقيم حدة/تثبيت/نعومة، ونضيف Keyframes فقط إذا تغيّرت القيم فعلاً. */
+const GW = 96;
+const anA = document.createElement('canvas'), anAx = anA.getContext('2d', { willReadFrequently: true });
+const anL = document.createElement('canvas'), anLx = anL.getContext('2d', { willReadFrequently: true });
+
+async function grabGrid() {
+  lastMask = null;
+  await seg.send({ image: v });
+  if (!lastMask) return null;
+  const gw = anA.width, gh = anA.height;
+  anAx.clearRect(0, 0, gw, gh);
+  anAx.drawImage(lastMask, 0, 0, gw, gh);
+  const md = anAx.getImageData(0, 0, gw, gh).data;
+  anLx.drawImage(v, 0, 0, gw, gh);
+  const vd = anLx.getImageData(0, 0, gw, gh).data;
+  const n = gw * gh;
+  const A = new Uint8Array(n), L = new Uint8Array(n);
+  for (let p = 0, i = 0; p < n; p++, i += 4) {
+    A[p] = md[i + 3];
+    L[p] = (vd[i] * 77 + vd[i + 1] * 150 + vd[i + 2] * 29) >> 8;
+  }
+  return { A, L };
+}
+function analyzePair(time, g0, g1, gHist) {
+  const n = g0.A.length;
+  const hist = new Uint32Array(256);
+  let fg = 0, dA = 0, dL = 0;
+  for (let p = 0; p < n; p++) {
+    const a = g0.A[p];
+    hist[a]++; gHist[a]++;
+    if (a >= 128) fg++;
+    dA += Math.abs(g1.A[p] - a);
+    dL += Math.abs(g1.L[p] - g0.L[p]);
+  }
+  return { time, fg: fg / n, motion: dL / n / 255, jitter: dA / n / 255, hist };
+}
+/* أنسب عتبة قص = أفرغ منطقة في توزيع قيم القناع بين 90 و170 */
+function valleyThreshold(hist) {
+  let total = 0;
+  for (let i = 0; i < 256; i++) total += hist[i];
+  if (!total) return 140;
+  const R = 10;
+  let best = 140, bestScore = Infinity;
+  for (let th = 90; th <= 170; th++) {
+    let s = 0, c = 0;
+    for (let k = th - R; k <= th + R; k++) { if (k < 0 || k > 255) continue; s += hist[k]; c++; }
+    const score = s / c / total + 1e-6 * Math.abs(th - 140);
+    if (score < bestScore) { bestScore = score; best = th; }
+  }
+  return best;
+}
+function showAutoResult(text, warn) {
+  const el = $('#autoResult');
+  el.textContent = text;
+  el.classList.toggle('warn', !!warn);
+  el.style.display = 'block';
+}
+
+async function autoTune() {
+  if (analyzing || exporting || converting || !v.videoWidth) return;
+  if (keyframes.length && !confirm(t('autoReplaceConfirm'))) return;
+  analyzing = true;
+  const btn = $('#autoBtn');
+  btn.disabled = true;
+  ['play', 'export', 'exportSeq'].forEach(id => { $('#' + id).disabled = true; });
+  v.pause();
+  const resumeTime = v.currentTime;
+  while (busy) await sleep(30);
+  busy = true; // يمنع renderFrame من التداخل مع التحليل
+  $('#autoResult').style.display = 'none';
+  showProgress();
+  setStatus(t('autoAnalyzing'));
+  try {
+    const ok = await ensureSeg();
+    if (!ok) throw new Error(t('errModel'));
+
+    const span = Math.max(0.2, trim.end - trim.start);
+    const N = clamp(Math.round(span / 1.5), 4, 12);
+    const dt = 0.05, vmax = v.duration || trim.end;
+    anA.width = anL.width = GW;
+    anA.height = anL.height = Math.max(8, Math.round(GW * H / W));
+    const gHist = new Uint32Array(256);
+    const samples = [];
+    const startTs = Date.now();
+
+    for (let i = 0; i < N; i++) {
+      const tA = trim.start + span * (i + 0.5) / N;
+      const tB = tA + dt <= vmax ? tA + dt : Math.max(0, tA - dt);
+      await seekTo(tA); const g0 = await grabGrid();
+      await seekTo(tB); const g1 = await grabGrid();
+      if (g0 && g1) samples.push(analyzePair(tA, g0, g1, gHist));
+      const frac = (i + 1) / N;
+      setProgress(frac * 100, (Date.now() - startTs) / 1000 / frac * (1 - frac));
+      btn.textContent = t('autoAnalyzing') + ' ' + Math.round(frac * 100) + '%';
+    }
+    if (samples.length < 2) throw new Error(t('autoNoFrames'));
+
+    // ما فيه شخص واضح؟ لا نغيّر شي
+    const fgs = samples.map(s => s.fg).sort((a, b) => a - b);
+    if (fgs[fgs.length >> 1] < 0.01) {
+      showAutoResult(t('autoNoPerson'), true);
+      setStatus(t('autoNoPerson'), true);
+      return;
+    }
+
+    const gSharp = valleyThreshold(gHist) / 2.55;
+    const edgeBase = clamp(Math.round(Math.max(W, H) / 500), 1, 6);
+    const raw = samples.map(s => {
+      const localSharp = valleyThreshold(s.hist) / 2.55;
+      const sharp = 0.5 * gSharp + 0.5 * localSharp;
+      // حركة كثيرة = تثبيت أقل (تجنّب الأشباح)، رفرفة بدون حركة = تثبيت أكثر
+      let temporal = 65 - 1500 * s.motion;
+      const jit = s.jitter - 1.2 * s.motion;
+      if (jit > 0.004) temporal += Math.min(20, jit * 2000);
+      temporal = clamp(temporal, 10, 80);
+      const edge = clamp(edgeBase + (s.motion > 0.02 ? 1 : 0), 0, 12);
+      return { t: s.time, sharp, temporal, edge };
+    });
+    // تنعيم بسيط بين العينات المتجاورة
+    const rounded = raw.map((r, i) => {
+      const a = raw[Math.max(0, i - 1)], b = raw[Math.min(raw.length - 1, i + 1)];
+      return {
+        t: r.t,
+        sharp: Math.round((a.sharp + 2 * r.sharp + b.sharp) / 4),
+        temporal: Math.round((a.temporal + 2 * r.temporal + b.temporal) / 4),
+        edge: Math.round(r.edge)
+      };
+    });
+    const differs = (a, b) => Math.abs(a.sharp - b.sharp) >= 6 || Math.abs(a.temporal - b.temporal) >= 12 || Math.abs(a.edge - b.edge) >= 1;
+    const kept = [rounded[0]];
+    for (let i = 1; i < rounded.length && kept.length < 10; i++) {
+      if (differs(rounded[i], kept[kept.length - 1])) kept.push(rounded[i]);
+    }
+
+    if (kept.length > 1) {
+      const base = { tol: +$('#tol').value, soft: +$('#soft').value, spill: +$('#spill').value };
+      keyframes = kept.map((k, i) => ({
+        t: Math.round((i === 0 ? trim.start : k.t) * 100) / 100,
+        sharp: k.sharp, temporal: k.temporal, edge: k.edge, ...base
+      }));
+      refreshKfUI();
+      showAutoResult(t('autoDoneKf').replace('{n}', keyframes.length));
+    } else {
+      keyframes = [];
+      refreshKfUI();
+      const avg = key => Math.round(rounded.reduce((sum, r) => sum + r[key], 0) / rounded.length);
+      const A = { sharp: avg('sharp'), temporal: avg('temporal'), edge: avg('edge') };
+      Object.entries(A).forEach(([id, val]) => setSliderValue(id, val));
+      showAutoResult(t('autoDone').replace('{sharp}', A.sharp).replace('{temporal}', A.temporal).replace('{edge}', A.edge));
+    }
+    saveSettings();
+    setStatus(t('ready'));
+  } catch (err) {
+    console.error(err);
+    setStatus(t('autoFail') + (err.message || err), true);
+  } finally {
+    busy = false; analyzing = false; prevAlpha = null;
+    hideProgress();
+    btn.disabled = false;
+    btn.textContent = t('autoBtn');
+    ['play', 'export', 'exportSeq'].forEach(id => { $('#' + id).disabled = false; });
+    await seekTo(clamp(resumeTime, 0, v.duration || resumeTime));
+    renderFrame();
+  }
+}
+$('#autoBtn').addEventListener('click', autoTune);
 
 /* ---------- الحفظ ---------- */
 function download(blob, name) {
@@ -734,17 +1077,24 @@ function updateProgressFromTime(curTime) {
 }
 
 $('#export').addEventListener('click', async () => {
-  if (exporting || !v.videoWidth) return;
+  if (exporting || analyzing || converting || !v.videoWidth) return;
   if (typeof MediaRecorder === 'undefined') return setStatus(t('errNoRecorder'), true);
+  const wantMp4 = $('#fmt').value === 'mp4';
   exporting = true;
   $('#export').disabled = true;
   if (mode === 'ai') { prevAlpha = null; await ensureSeg(); }
   v.pause(); v.loop = false; v.currentTime = trim.start;
   await new Promise(r => setTimeout(r, 250));
 
+  // MP4 ما يدعم الشفافية: لو الخلفية شفافة نستخدم أخضر (للكروما كي في تطبيق المونتاج)
+  exportBgOverride = (wantMp4 && bg.type === 'transparent') ? '#00b140' : null;
+
   const stream = out.captureStream(30);
-  try { (v.captureStream ? v.captureStream().getAudioTracks() : []).forEach(t => stream.addTrack(t)); } catch (e) {}
-  const mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'].find(m => MediaRecorder.isTypeSupported(m));
+  try { (v.captureStream ? v.captureStream().getAudioTracks() : []).forEach(tr => stream.addTrack(tr)); } catch (e) {}
+  const mp4Types = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/mp4'];
+  const webmTypes = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  const order = wantMp4 ? [...mp4Types, ...webmTypes] : [...webmTypes, ...mp4Types];
+  const mime = order.find(m => MediaRecorder.isTypeSupported(m));
   const rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 8_000_000 } : undefined);
   const chunks = [];
   rec.ondataavailable = e => e.data.size && chunks.push(e.data);
@@ -753,24 +1103,34 @@ $('#export').addEventListener('click', async () => {
   exportStartTs = Date.now();
   const tick = setInterval(() => updateProgressFromTime(v.currentTime), 200);
 
-  rec.onstop = () => {
+  rec.onstop = async () => {
     clearInterval(tick);
+    const usedGreen = !!exportBgOverride;
+    exportBgOverride = null;
     setProgress(100, 0);
-    const ext = (rec.mimeType || '').includes('mp4') ? 'mp4' : 'webm';
-    const finalBlob = new Blob(chunks, { type: rec.mimeType });
-    download(finalBlob, 'cutout-video.' + ext);
+    const gotMime = rec.mimeType || mime || '';
+    const isMp4 = gotMime.includes('mp4');
+    const finalBlob = new Blob(chunks, { type: gotMime });
     exporting = false; $('#export').disabled = false;
-    hideProgress();
-    if (ext === 'webm') {
-      lastExportBlob = finalBlob;
-      lastExportName = 'cutout-video';
-      lastExportKind = 'video';
+    lastExportBlob = finalBlob; lastExportName = 'cutout-video'; lastExportKind = 'video';
+    if (isMp4 || !wantMp4) {
+      download(finalBlob, 'cutout-video.' + (isMp4 ? 'mp4' : 'webm'));
+      hideProgress();
       $('#convertLast').disabled = false;
+      updateShareButton();
+      setStatus(t('exportDone') + (isMp4 ? '' : ' ' + t('exportDoneWebmNote')) + (usedGreen && isMp4 ? ' ' + t('greenHowTo') : ''));
     } else {
-      lastExportBlob = finalBlob; lastExportName = 'cutout-video'; lastExportKind = 'video';
+      // المتصفح سجّل WebM فقط → نحوّله تلقائياً لـ MP4
+      hideProgress();
+      $('#convertLast').disabled = false;
+      setStatus(t('autoConvertNote'));
+      const okConv = await convertToMp4(finalBlob, 'cutout-video');
+      if (!okConv) {
+        download(finalBlob, 'cutout-video.webm');
+        updateShareButton();
+        setStatus(t('convertFailedWebmSaved'), true);
+      }
     }
-    updateShareButton();
-    setStatus(t('exportDone') + (ext === 'webm' ? ' ' + t('exportDoneWebmNote') : ''));
   };
   const stopAtEnd = () => {
     if (v.currentTime >= trim.end - 0.05 || v.ended) {
@@ -780,7 +1140,8 @@ $('#export').addEventListener('click', async () => {
     }
   };
   v.addEventListener('ended', () => setTimeout(() => rec.state !== 'inactive' && rec.stop(), 300), { once: true });
-  setStatus(bg.type === 'transparent' ? t('exportingTransparentNote') : t('exportingNote'), bg.type === 'transparent');
+  if (bg.type === 'transparent') setStatus(wantMp4 ? t('exportingMp4Green') : t('exportingTransparentNote'), !wantMp4);
+  else setStatus(t('exportingNote'));
   rec.start(500);
   v.play();
   requestAnimationFrame(stopAtEnd);
@@ -801,7 +1162,7 @@ async function ensureJSZip() {
   return true;
 }
 $('#exportSeq').addEventListener('click', async () => {
-  if (exporting || !v.videoWidth) return;
+  if (exporting || analyzing || !v.videoWidth) return;
   try { await ensureJSZip(); } catch (e) { return setStatus(t('errZipLoad'), true); }
   exporting = true;
   $('#exportSeq').disabled = true;
@@ -841,8 +1202,16 @@ $('#exportSeq').addEventListener('click', async () => {
 });
 function seekTo(time) {
   return new Promise(resolve => {
-    const onSeek = () => { v.removeEventListener('seeked', onSeek); resolve(); };
-    v.addEventListener('seeked', onSeek);
+    let done = false, to = null;
+    const fin = () => {
+      if (done) return;
+      done = true;
+      v.removeEventListener('seeked', fin);
+      clearTimeout(to);
+      resolve();
+    };
+    to = setTimeout(fin, 2000); // احتياط: لو ما انطلق حدث seeked
+    v.addEventListener('seeked', fin);
     v.currentTime = time;
   });
 }
@@ -929,13 +1298,14 @@ async function loadFFmpeg() {
   return ffmpeg;
 }
 
+/* يرجّع true لو نجح التحويل وبدأ التحميل، وإلا false */
 async function convertToMp4(blob, filename) {
-  if (converting) return;
+  if (converting) return false;
   converting = true;
+  let success = false;
   $('#convertLast').disabled = true;
   $('#convertFile').disabled = true;
   const startTs = Date.now();
-  const approxDurationSec = v.duration || 10; // تقدير تقريبي لحساب ETA
   showProgress();
   setProgress(2, null);
   try {
@@ -959,6 +1329,7 @@ async function convertToMp4(blob, filename) {
     lastExportBlob = mp4Blob; lastExportName = filename; lastExportKind = 'video';
     updateShareButton();
     setStatus(t('convertDone'));
+    success = true;
     try { await ffmpeg.deleteFile(inName); await ffmpeg.deleteFile(outName); } catch (e) {}
   } catch (err) {
     console.error(err);
@@ -968,6 +1339,7 @@ async function convertToMp4(blob, filename) {
   converting = false;
   $('#convertLast').disabled = !lastExportBlob;
   $('#convertFile').disabled = false;
+  return success;
 }
 
 $('#convertLast').addEventListener('click', () => {
@@ -1020,7 +1392,8 @@ const I18N = {
     tol: 'الحساسية', soft: 'نعومة الحواف', spill: 'إزالة انعكاس اللون',
     bgTitle: 'الخلفية الجديدة', bgTransparent: 'شفافة', bgGreen: 'أخضر', bgBlue: 'أزرق', bgBlack: 'أسود', bgWhite: 'أبيض', bgImage: 'صورة…', bgCustom: 'لون مخصص',
     saveTitle: 'حفظ', savePng: 'حفظ الإطار الحالي PNG شفاف', exportVideo: 'تصدير الفيديو', exportSeq: 'تصدير PNG Sequence (ZIP)', shareBtn: 'مشاركة',
-    saveHint: 'لتصدير فيديو للاستخدام في Alight Motion: اختر خلفية خضراء ثم صدّر، وطبّق عليها Chroma Key هناك. صيغة الشفافية داخل الفيديو ما تدعمها كل الأجهزة، فاستخدم PNG Sequence أو PNG للإطارات الشفافة.',
+    saveHint: 'التصدير الافتراضي MP4 ويقرأ في أغلب التطبيقات. MP4 ما يدعم الشفافية، فإذا كانت الخلفية شفافة تطلع خضراء عن قصد عشان تشيلها داخل Alight Motion: حدّد الطبقة ← Effects ← Matte/Mask/Key ← Chroma Key، اختر الأخضر بالقطارة، عدّل Threshold ثم Feather، وفعّل Defringe إذا ظهرت هالة خضراء على الحواف.',
+    fmtLabel: 'صيغة تصدير الفيديو', fmtMp4: 'MP4 (يقرأ في كل التطبيقات)', fmtWebm: 'WebM (للشفافية في بعض المتصفحات)',
     mp4Title: 'تحويل لـ MP4', mp4Hint: 'تطبيقات زي Alight Motion غالباً ما تقرأ صيغة WebM. هذا الزر يحوّل الفيديو لـ MP4 داخل المتصفح نفسه (بدون رفعه لأي سيرفر) عشان ترفعه بأي تطبيق.',
     convertLast: 'تحويل آخر تصدير لـ MP4', convertFile: 'تحويل فيديو WebM من الجهاز',
     mp4Hint2: 'أول مرة تستخدم التحويل بياخذ وقت أطول لأنه يحمّل أداة التحويل (حوالي 30 ميجا)، والمرات اللي بعدها أسرع. التحويل نفسه يأخذ وقت تقريباً بطول الفيديو أو أكثر حسب جهازك.',
@@ -1031,13 +1404,27 @@ const I18N = {
     frameSaved: 'تم حفظ الإطار.', errNoRecorder: 'متصفحك ما يدعم تصدير الفيديو. جرّب Chrome.',
     exportDone: 'تم التصدير وبدأ التحميل.', exportDoneWebmNote: 'إذا التطبيق ما يقرأ WebM، استخدم زر "تحويل آخر تصدير لـ MP4" تحت.',
     exportingTransparentNote: 'جاري التصدير… الشفافية قد لا تُحفظ في الفيديو، الأفضل خلفية خضراء. لا تغلق الصفحة.',
+    exportingMp4Green: 'جاري تصدير MP4… الشفافية ما تنحفظ في MP4، فتم استخدام خلفية خضراء (طبّق عليها Chroma Key). لا تغلق الصفحة.',
     exportingNote: 'جاري التصدير… لا تغلق الصفحة حتى ينتهي الجزء المحدد.',
+    autoConvertNote: 'متصفحك سجّل الفيديو بصيغة WebM، جاري تحويله تلقائياً لـ MP4…',
+    convertFailedWebmSaved: 'تعذر التحويل لـ MP4، فتم حفظ الفيديو بصيغة WebM بدلاً منه. جرّب زر "تحويل آخر تصدير لـ MP4" لاحقاً.',
     eta: 'الوقت المتبقي:', loadingZipTool: 'جاري تحميل أداة الضغط (ZIP)…', errZipLoad: 'تعذر تحميل أداة الضغط. تأكد من الإنترنت.',
     exportingSeq: 'جاري تصدير الإطارات…', zippingFiles: 'جاري ضغط الملفات…', seqDone: 'تم تصدير {n} إطار وبدأ التحميل.',
     errShare: 'تعذرت المشاركة.', shareFallbackText: 'شوف فيديو القص اللي سويته', shareUnsupported: 'المشاركة المباشرة غير مدعومة بهذا المتصفح. استخدم زر التصدير للتنزيل ثم شارك الملف يدوياً.',
     converting: 'جاري التحويل:', loadingConvertTool: 'جاري تحميل أداة التحويل (أول مرة فقط، يحتاج إنترنت)…', convertingNoClose: 'جاري تحويل الفيديو لـ MP4، لا تغلق الصفحة…',
     convertDone: 'تم التحويل لـ MP4 وبدأ التحميل. جربه بأي تطبيق.', errConvert: 'تعذر التحويل: ', noLastExport: 'ما فيه تصدير سابق. صدّر فيديو أولاً.',
     sizeWarn: 'الفيديو طويل أو دقته عالية — المعالجة قد تكون بطيئة أو تجمّد المتصفح. جرّب تقصير الجزء المطلوب من شريط التقطيع فوق.',
+    autoBtn: '✦ ضبط تلقائي حسب الفيديو', autoAnalyzing: 'جاري تحليل الفيديو',
+    autoDone: 'تم الضبط تلقائياً: حدة الحواف {sharp}، التثبيت {temporal}، النعومة {edge}.',
+    autoDoneKf: 'تم الضبط تلقائياً وأُضيف {n} Keyframes حسب تغيّر الحركة في الفيديو. تقدر تعدّلها أو تضيف غيرها.',
+    autoNoPerson: 'ما لقيت شخص واضح في عينات الفيديو، فما تغيّرت الإعدادات. جرّب الكروما كي.',
+    autoNoFrames: 'ما قدرت أقرأ إطارات كافية من الفيديو.',
+    autoFail: 'تعذر الضبط التلقائي: ', autoReplaceConfirm: 'الضبط التلقائي يستبدل الـ Keyframes الحالية. تكمل؟',
+    kfTitle: 'Keyframes (تغيير الإعدادات مع الوقت)',
+    kfHint: 'الـ Keyframe يحفظ إعدادات الحواف عند لحظة معينة، والقيم تتغير تدريجياً بين كل Keyframe والثاني. اذهب للوقت المطلوب واضغط إضافة، وبعدها أي تعديل على السلايدرز يُسجَّل تلقائياً عند الوقت الحالي.',
+    kfAdd: '+ إضافة Keyframe هنا', kfClear: 'مسح كل الـ Keyframes', kfEmpty: 'ما فيه Keyframes — الإعدادات ثابتة على كامل الفيديو.',
+    greenHowTo: 'الخلفية خضراء عن قصد. في Alight Motion: Effects ← Matte/Mask/Key ← Chroma Key، وخذ الأخضر بالقطارة.',
+    kfDelete: 'حذف', kfAdded: 'تم حفظ Keyframe عند {t}.', kfCleared: 'تم مسح الـ Keyframes.',
   },
   en: {
     title: 'Video Background Cutout', subtitle: 'All processing happens in your browser — the video is never uploaded anywhere.',
@@ -1052,7 +1439,8 @@ const I18N = {
     tol: 'Tolerance', soft: 'Edge softness', spill: 'Spill removal',
     bgTitle: 'New background', bgTransparent: 'Transparent', bgGreen: 'Green', bgBlue: 'Blue', bgBlack: 'Black', bgWhite: 'White', bgImage: 'Image…', bgCustom: 'Custom color',
     saveTitle: 'Save', savePng: 'Save current frame (transparent PNG)', exportVideo: 'Export video', exportSeq: 'Export PNG Sequence (ZIP)', shareBtn: 'Share',
-    saveHint: 'For Alight Motion: pick a green background then export, and apply Chroma Key there. Video transparency isn\'t supported on every device — use PNG Sequence or PNG for transparent frames.',
+    saveHint: 'Export defaults to MP4, which most apps can read. MP4 has no transparency, so a transparent background comes out green on purpose so you can remove it inside Alight Motion: select the layer → Effects → Matte/Mask/Key → Chroma Key, pick the green with the eyedropper, adjust Threshold then Feather, and turn on Defringe if the edges show a green halo.',
+    fmtLabel: 'Video export format', fmtMp4: 'MP4 (works in all apps)', fmtWebm: 'WebM (transparency on some browsers)',
     mp4Title: 'Convert to MP4', mp4Hint: 'Apps like Alight Motion often only read WebM. This button converts the video to MP4 right in your browser (nothing is uploaded) so you can import it anywhere.',
     convertLast: 'Convert last export to MP4', convertFile: 'Convert a WebM file from device',
     mp4Hint2: 'The first conversion takes longer since it loads the conversion tool (~30MB); later ones are faster. Conversion itself takes roughly as long as the video, depending on your device.',
@@ -1063,13 +1451,27 @@ const I18N = {
     frameSaved: 'Frame saved.', errNoRecorder: 'Your browser doesn\'t support video export. Try Chrome.',
     exportDone: 'Exported and download started.', exportDoneWebmNote: 'If your app can\'t read WebM, use "Convert last export to MP4" below.',
     exportingTransparentNote: 'Exporting… transparency may not be preserved in video, green background is best. Don\'t close the page.',
+    exportingMp4Green: 'Exporting MP4… MP4 can\'t keep transparency, so a green background is used (apply Chroma Key to it). Don\'t close the page.',
     exportingNote: 'Exporting… don\'t close the page until the selected part finishes.',
+    autoConvertNote: 'Your browser recorded WebM, converting to MP4 automatically…',
+    convertFailedWebmSaved: 'MP4 conversion failed, so the video was saved as WebM instead. Try "Convert last export to MP4" later.',
     eta: 'Time left:', loadingZipTool: 'Loading the ZIP tool…', errZipLoad: 'Could not load the ZIP tool. Check your connection.',
     exportingSeq: 'Exporting frames…', zippingFiles: 'Zipping files…', seqDone: 'Exported {n} frames, download started.',
     errShare: 'Sharing failed.', shareFallbackText: 'Check out this cutout video', shareUnsupported: 'Direct sharing isn\'t supported in this browser. Use the export button to download, then share the file manually.',
     converting: 'Converting:', loadingConvertTool: 'Loading the conversion tool (first time only, needs internet)…', convertingNoClose: 'Converting video to MP4, don\'t close the page…',
     convertDone: 'Converted to MP4, download started. Try it in any app.', errConvert: 'Conversion failed: ', noLastExport: 'No previous export. Export a video first.',
     sizeWarn: 'This video is long or high-resolution — processing may be slow or freeze the browser. Try trimming a shorter section above.',
+    autoBtn: '✦ Auto-tune for this video', autoAnalyzing: 'Analyzing video',
+    autoDone: 'Auto-tuned: edge sharpness {sharp}, smoothing {temporal}, softness {edge}.',
+    autoDoneKf: 'Auto-tuned and added {n} keyframes where the motion changes. You can edit them or add more.',
+    autoNoPerson: 'No clear person found in the sampled frames, so settings were left unchanged. Try Chroma key.',
+    autoNoFrames: 'Could not read enough frames from the video.',
+    autoFail: 'Auto-tune failed: ', autoReplaceConfirm: 'Auto-tune will replace the current keyframes. Continue?',
+    kfTitle: 'Keyframes (change settings over time)',
+    kfHint: 'A keyframe stores the edge settings at one moment, and values blend smoothly between keyframes. Go to the time you want and tap Add; after that, any slider change is recorded automatically at the current time.',
+    kfAdd: '+ Add keyframe here', kfClear: 'Clear all keyframes', kfEmpty: 'No keyframes — settings are constant across the whole video.',
+    greenHowTo: 'The green background is intentional. In Alight Motion: Effects → Matte/Mask/Key → Chroma Key, then pick the green with the eyedropper.',
+    kfDelete: 'Delete', kfAdded: 'Keyframe saved at {t}.', kfCleared: 'Keyframes cleared.',
   }
 };
 let currentLang = 'ar';
@@ -1078,6 +1480,7 @@ function applyI18n() {
   document.documentElement.lang = currentLang === 'ar' ? 'ar' : 'en';
   document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
   document.querySelectorAll('[data-i18n]').forEach(el => {
+    if (analyzing && el.id === 'autoBtn') return;
     const key = el.getAttribute('data-i18n');
     const val = t(key);
     if (val) el.textContent = val;
@@ -1085,6 +1488,7 @@ function applyI18n() {
   $('#langToggle').textContent = currentLang === 'ar' ? 'English' : 'العربية';
   $('#quality-v').textContent = $('#quality').value === '1' ? t('qualityFine') : t('qualityFast');
   if (v.duration) updateTrimUI();
+  refreshKfUI();
 }
 $('#langToggle').addEventListener('click', () => {
   currentLang = currentLang === 'ar' ? 'en' : 'ar';
