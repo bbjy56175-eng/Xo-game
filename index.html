@@ -109,6 +109,18 @@
     <div id="ai-panel">
       <p class="hint">يكتشف الشخص تلقائياً ويشيل الخلفية، بدون خلفية خضراء.</p>
       <div class="row">
+        <label for="quality">دقة الكشف <b id="quality-v">دقيقة</b></label>
+        <input type="range" id="quality" min="0" max="1" step="1" value="1">
+      </div>
+      <div class="row">
+        <label for="sharp">حدة الحواف (عتبة القص) <b id="sharp-v">55</b></label>
+        <input type="range" id="sharp" min="0" max="100" step="1" value="55">
+      </div>
+      <div class="row">
+        <label for="temporal">تثبيت الحواف بين الفريمات <b id="temporal-v">40</b></label>
+        <input type="range" id="temporal" min="0" max="90" step="1" value="40">
+      </div>
+      <div class="row">
         <label for="edge">نعومة الحواف <b id="edge-v">2</b></label>
         <input type="range" id="edge" min="0" max="12" step="1" value="2">
       </div>
@@ -163,13 +175,15 @@
 const $ = s => document.querySelector(s);
 const v = $('#v'), out = $('#out'), ctx = out.getContext('2d');
 const tmp = document.createElement('canvas'), tctx = tmp.getContext('2d', { willReadFrequently: true });
+const maskCanvas = document.createElement('canvas'), mctx = maskCanvas.getContext('2d', { willReadFrequently: true });
 const statusEl = $('#status');
 
 let W = 640, H = 360;
 let mode = 'ai';
 let keyRGB = [0, 255, 0];
 let bg = { type: 'transparent', color: '#00b140', img: null };
-let seg = null, segReady = false, lastMask = null;
+let seg = null, segReady = false, segQuality = 1, lastMask = null;
+let prevAlpha = null; // Float32Array for temporal smoothing across frames
 let busy = false, playing = false, exporting = false;
 
 const setStatus = (t, warn) => { statusEl.textContent = t || ''; statusEl.classList.toggle('warn', !!warn); };
@@ -187,7 +201,9 @@ $('#file').addEventListener('change', e => {
 v.addEventListener('loadedmetadata', () => {
   const s = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight));
   W = Math.round(v.videoWidth * s); H = Math.round(v.videoHeight * s);
-  out.width = tmp.width = W; out.height = tmp.height = H;
+  out.width = tmp.width = maskCanvas.width = W;
+  out.height = tmp.height = maskCanvas.height = H;
+  prevAlpha = null;
   v.currentTime = 0.05;
 });
 v.addEventListener('loadeddata', () => {
@@ -237,28 +253,65 @@ async function renderFrame() {
 
 /* ---------- القص بالذكاء الاصطناعي ---------- */
 async function ensureSeg() {
-  if (segReady) return true;
+  const wantQuality = +$('#quality').value;
+  if (segReady && seg && wantQuality === segQuality) return true;
   if (typeof SelfieSegmentation === 'undefined') {
     setStatus('تعذر تحميل نموذج القص التلقائي. تأكد من الإنترنت أو استخدم الكروما كي.', true);
     return false;
   }
-  setStatus('جاري تحميل نموذج القص التلقائي (أول مرة فقط)…');
+  setStatus('جاري تحميل نموذج القص التلقائي…');
   seg = new SelfieSegmentation({ locateFile: f => 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/' + f });
-  seg.setOptions({ modelSelection: 0 });
+  // modelSelection: 0 = عام/سريع، 1 = دقيق (landscape) — أفضل للحواف الدقيقة
+  seg.setOptions({ modelSelection: wantQuality });
   seg.onResults(r => { lastMask = r.segmentationMask; });
   await seg.initialize();
+  segQuality = wantQuality;
   segReady = true;
+  prevAlpha = null; // القناع القديم ما عاد صالح مع نموذج جديد
   setStatus('جاهز.');
   return true;
 }
 
 function composeAI(mask) {
   const edge = +$('#edge').value;
+  const sharp = +$('#sharp').value / 100;   // 0..1 موضع عتبة القص
+  const temporal = +$('#temporal').value / 100; // 0..0.9 وزن الفريم السابق
+
+  // ارسم القناع الخام بحجم الكانفس
+  mctx.clearRect(0, 0, W, H);
+  mctx.drawImage(mask, 0, 0, W, H);
+  const md = mctx.getImageData(0, 0, W, H);
+  const d = md.data;
+
+  // نطاق التدرج حول نقطة العتبة (كلما زادت الحدة صغر النطاق = قص أحد)
+  const band = Math.max(4, 60 * (1 - Math.min(sharp, 0.97)));
+  const lo = sharp * 255 - band / 2;
+  const hi = sharp * 255 + band / 2;
+
+  if (!prevAlpha || prevAlpha.length !== W * H) prevAlpha = new Float32Array(W * H);
+
+  for (let p = 0, i = 0; i < d.length; i += 4, p++) {
+    // قناع MediaPipe يحمل قيمة الثقة داخل قناة الشفافية (alpha) وليس قناة اللون
+    let a = d[i + 3];
+    if (a <= lo) a = 0;
+    else if (a >= hi) a = 255;
+    else a = (a - lo) / (hi - lo) * 255;
+
+    // تثبيت زمني: امزج مع قيمة الفريم السابق لتقليل رفرفة الحواف
+    if (temporal > 0) {
+      a = prevAlpha[p] * temporal + a * (1 - temporal);
+    }
+    prevAlpha[p] = a;
+    d[i] = d[i + 1] = d[i + 2] = 255;
+    d[i + 3] = a;
+  }
+  mctx.putImageData(md, 0, 0);
+
   tctx.save();
   tctx.clearRect(0, 0, W, H);
   tctx.globalCompositeOperation = 'source-over';
   tctx.filter = edge ? `blur(${edge}px)` : 'none';
-  tctx.drawImage(mask, 0, 0, W, H);
+  tctx.drawImage(maskCanvas, 0, 0);
   tctx.filter = 'none';
   tctx.globalCompositeOperation = 'source-in';
   tctx.drawImage(v, 0, 0, W, H);
@@ -364,8 +417,16 @@ function setMode(m) {
 }
 $('#tab-ai').onclick = () => setMode('ai');
 $('#tab-ck').onclick = () => setMode('chroma');
-['edge', 'tol', 'soft', 'spill'].forEach(id => {
-  $('#' + id).addEventListener('input', e => {
+
+$('#quality').addEventListener('input', e => {
+  $('#quality-v').textContent = e.target.value === '1' ? 'دقيقة' : 'سريعة';
+  segReady = false; // يجبر إعادة تهيئة النموذج بالجودة الجديدة
+  if (!playing) renderFrame();
+});
+['edge', 'sharp', 'temporal', 'tol', 'soft', 'spill'].forEach(id => {
+  const el = $('#' + id);
+  if (!el) return;
+  el.addEventListener('input', e => {
     $('#' + id + '-v').textContent = e.target.value;
     if (!playing) renderFrame();
   });
@@ -388,7 +449,7 @@ $('#export').addEventListener('click', async () => {
   if (typeof MediaRecorder === 'undefined') return setStatus('متصفحك ما يدعم تصدير الفيديو. جرّب Chrome.', true);
   exporting = true;
   $('#export').disabled = true;
-  if (mode === 'ai') await ensureSeg();
+  if (mode === 'ai') { prevAlpha = null; await ensureSeg(); }
   v.pause(); v.loop = false; v.currentTime = 0;
   await new Promise(r => setTimeout(r, 250));
 
